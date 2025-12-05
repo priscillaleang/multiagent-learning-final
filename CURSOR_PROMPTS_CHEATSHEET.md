@@ -94,23 +94,58 @@ File: src/games/game_wrapper.py
 
 Requirements:
 1. GameWrapper class that wraps pyspiel.load_game()
-2. Methods:
-   - __init__(game_name): 'kuhn_poker', 'leduc_poker', 'liars_dice', 'dark_hex'
-   - reset(): returns encoded initial state
-   - step(action): returns (obs, reward, done)
-   - current_player(): returns player index
-   - legal_actions(): returns valid action indices
-   - Properties: state_dim, action_dim, num_players
-
-3. Handle chance nodes automatically with uniform sampling
-4. Track episode statistics (reward_sum, length)
-5. Use state_encoder module for encoding
+2. **ADD VALIDATION in __init__:**
+   - Verify game.get_type().provides_information_state_tensor == True
+   - Verify game.get_type().dynamics == pyspiel.GameType.Dynamics.SEQUENTIAL
+   - Verify game.num_players() == 2
+   - Warn if not zero-sum
+   - Raise ValueError with helpful message if checks fail
+3. Methods: reset(), step(), current_player(), legal_actions()
+4. Handle chance nodes automatically
+5. Use state_encoder for encoding
 
 Auto-import state encoders:
 ```python
 from src.games import state_encoder
 obs = state_encoder.encode_state(state, self.game)
 ```
+
+Skeleton Implementation
+```
+class GameWrapper:
+    def __init__(self, game_name):
+        self.game = pyspiel.load_game(game_name)
+        
+        # === VERIFY EXTENSIVE-FORM REQUIREMENTS ===
+        game_type = self.game.get_type()
+        
+        # Check 1: Must provide information state
+        if not game_type.provides_information_state_tensor:
+            raise ValueError(f"{game_name} does not provide information_state_tensor. "
+                           "NFSP/PSRO require extensive-form games with imperfect information.")
+        
+        # Check 2: Must be sequential (not simultaneous moves)
+        if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
+            raise ValueError(f"{game_name} has simultaneous moves. "
+                           "Use sequential extensive-form games instead.")
+        
+        # Check 3: Should be two-player zero-sum (for Nash convergence)
+        if game_type.utility != pyspiel.GameType.Utility.ZERO_SUM:
+            print(f"Warning: {game_name} is not zero-sum. "
+                  "Convergence guarantees may not hold.")
+        
+        if self.game.num_players() != 2:
+            raise ValueError(f"{game_name} has {self.game.num_players()} players. "
+                           "This implementation supports 2-player games only.")
+        
+        # === INITIALIZE ===
+        self.state_dim = self.game.information_state_tensor_size()
+        self.action_dim = self.game.num_distinct_actions()
+        self.num_players = self.game.num_players()
+
+```
+
+
 
 Generate complete wrapper class with documentation.
 
